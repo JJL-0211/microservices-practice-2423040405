@@ -316,3 +316,16 @@ flowchart TD
 - 采用**Docker Compose**一键编排全系统所有服务与中间件
 - 接入**Nginx**反向代理，实现静态资源托管、负载均衡、接口转发
 - 实践蓝绿部署、滚动发布等基础部署策略
+
+Java要求：JDK25
+
+Maven：使用项目自带 Maven Wrapper（mvnw）
+
+启动命令：./mvnw spring-boot:run
+
+测试命令：./mvnw test
+
+问候接口：http://localhost:8080/hello
+健康检查接口：http://localhost:8080/health
+
+现在只更新了主体框架，其他都没实现
