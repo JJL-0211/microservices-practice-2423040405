@@ -328,4 +328,67 @@ Maven：使用项目自带 Maven Wrapper（mvnw）
 问候接口：http://localhost:8080/hello
 健康检查接口：http://localhost:8080/health
 
-现在只更新了主体框架，其他都没实现
+## 第 04 周：业务接口与 MySQL 持久化
+
+本周在 `monolith/` 中实现"商品下单流程"（模型 / Service / REST API / JPA 持久化）。
+新增代码位于 `com.zjgsu.ljj` 包下的 `model`、`repository`、`dto`、`service`、`controller`、`exception` 子包。
+
+### 本地 MySQL 准备（不使用 Docker Compose）
+
+1. 安装本地 MySQL 8（Windows 可用官方安装包或 ZIP 版），并确保服务已启动。
+2. 创建数据库：
+
+```sql
+CREATE DATABASE IF NOT EXISTS kitty_shop DEFAULT CHARACTER SET utf8mb4;
+```
+
+3. 连接配置在 `monolith/src/main/resources/application.yaml`，本机账号为 `root`/`666888`（示例，请按本机实际情况修改）：
+
+```yaml
+spring:
+  datasource:
+    url: "jdbc:mysql://localhost:3306/kitty_shop?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true"
+    username: root
+    password: 666888
+```
+
+### 启动
+
+```bash
+cd monolith
+./mvnw spring-boot:run
+```
+
+启动后 Hibernate 自动建表（`product`、`shop_order`），并执行 `data.sql` 写入演示商品。
+
+### curl 示例（可直接运行）
+
+1. 查询商品列表：
+
+```bash
+curl http://localhost:8080/api/products
+```
+
+2. 下单一单（商品 1，数量 2）：
+
+```bash
+curl -i -X POST http://localhost:8080/api/orders -H "Content-Type: application/json" -d "{\"productId\":1,\"quantity\":2}"
+```
+
+3. 查询订单详情：
+
+```bash
+curl http://localhost:8080/api/orders/1
+```
+
+4. 库存不足时的错误响应（商品 3 库存为 0，返回 409）：
+
+```bash
+curl -i -X POST http://localhost:8080/api/orders -H "Content-Type: application/json" -d "{\"productId\":3,\"quantity\":1}"
+```
+
+### 测试
+
+进入 `monolith/` 执行 `./mvnw test`，使用 H2 内存库，无需 MySQL 即可重复通过（共 14 个用例）。
+
+现在已实现第 04 周的主体业务实现，其余模块待后续课程继续完善。

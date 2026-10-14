@@ -1,0 +1,16 @@
+# 测试环境配置：使用 H2 内存数据库，保证 ./mvnw test 无需 MySQL 即可重复通过
+spring:
+  datasource:
+    url: "jdbc:h2:mem:kitty_shop;DB_CLOSE_DELAY=-1;MODE=MySQL;DB_CLOSE_ON_EXIT=FALSE"
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    show-sql: false
+  sql:
+    init:
+      # 测试数据由测试代码准备，不执行 MySQL 专用的 data.sql
+      mode: never
