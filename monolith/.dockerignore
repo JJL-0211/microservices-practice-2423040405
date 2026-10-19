@@ -1,0 +1,21 @@
+# 版本控制与 IDE 配置（无关内容，减少构建上下文）
+.git
+.gitignore
+.gitattributes
+.idea
+*.iml
+.vscode
+HELP.md
+
+# 本地构建产物（镜像内由 Maven 重新编译，避免带入本机 target/）
+target
+**/target
+
+# 环境与密码文件（避免敏感信息被拷入镜像）
+.env
+.env.*
+*.env
+
+# 文档与日志
+*.md
+*.log

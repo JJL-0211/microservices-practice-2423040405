@@ -392,3 +392,79 @@ curl -i -X POST http://localhost:8080/api/orders -H "Content-Type: application/j
 进入 `monolith/` 执行 `./mvnw test`，使用 H2 内存库，无需 MySQL 即可重复通过（共 14 个用例）。
 
 现在已实现第 04 周的主体业务实现，其余模块待后续课程继续完善。
+
+## 第 05 周：Docker 容器化（镜像构建 + Compose 一键启动 + 数据持久化）
+
+本周把 `monolith/` 单体工程与 MySQL 一起容器化：`Dockerfile`、`.dockerignore` 放在
+`monolith/`，根目录提供 `compose.yaml` 与 `.env.example`，用命名数据卷持久化数据库。
+
+### 一、多阶段镜像构建
+
+```bash
+# 在仓库根目录执行，构建上下文为 ./monolith
+docker build -t kitty-shop:week05 ./monolith
+docker images kitty-shop:week05
+```
+
+`Dockerfile` 为两阶段构建：builder 阶段用 `maven:3.9.16-eclipse-temurin-25`
+编译打包出可运行 JAR，runtime 阶段只保留 `eclipse-temurin:25.0.4.1_1-jre`
+与该 JAR。因此本机无需安装 Maven / Java，且运行镜像不含构建工具，体积更小。
+
+### 二、Compose 编排与启动
+
+```bash
+# 1) 复制环境变量模板，按本机情况修改密码（Windows 用 Copy-Item）
+Copy-Item .env.example .env      # Linux/macOS: cp .env.example .env
+
+# 2) 校验 compose 文件并一键构建启动
+docker compose config --quiet
+docker compose up -d --build
+
+# 3) 查看状态与日志
+docker compose ps
+docker compose logs --tail=50 app
+
+# 4) 停止（保留命名数据卷）
+docker compose down
+```
+
+连接方式：`app` 与 `mysql` 处于同一 `kitty-network` 网络，应用通过服务名
+`mysql:3306` 连接数据库；库名、账号、密码来自 `.env`，Compose 以
+`SPRING_DATASOURCE_*` 环境变量注入应用（无需改动 `application.yaml`）。
+`mysql` 配置了健康检查，`app` 通过 `depends_on: condition: service_healthy`
+等待数据库健康后启动。默认访问 `http://localhost:8080`。
+
+### 三、健康接口与业务 API 验证
+
+```bash
+# 健康检查
+curl http://localhost:8080/actuator/health
+
+# 业务 API 1：查询商品列表（读）
+curl http://localhost:8080/api/products
+
+# 业务 API 2：下单（创建），商品 1、数量 2
+curl -i -X POST http://localhost:8080/api/orders \
+  -H "Content-Type: application/json" \
+  -d "{\"productId\":1,\"quantity\":2}"
+
+# 业务 API 3：查询订单详情
+curl http://localhost:8080/api/orders/1
+```
+
+### 四、数据持久化验证
+
+```bash
+# 先用上面的下单接口创建一条订单，再删除容器（不加 -v，保留命名数据卷）并重建
+docker compose down
+docker compose up -d
+
+# 数据库健康、应用启动完成后再次查询，ID 与关键字段应保持不变
+curl http://localhost:8080/api/orders/1
+```
+
+命名数据卷 `mysql-data` 挂载到 MySQL 的 `/var/lib/mysql`，`docker compose down`
+只删除容器与网络、不删除卷，因此重建后数据仍在。请勿使用 `docker compose down -v`
+（会连数据卷一起删除）。
+
+完整过程与截图见 [第 05 周作业记录](docs/homework/week-05/index.md)。
