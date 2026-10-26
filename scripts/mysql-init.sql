@@ -1,0 +1,4 @@
+# 为三个微服务各建独立数据库；JPA 在各服务内 ddl-auto=update 建表
+CREATE DATABASE IF NOT EXISTS kitty_product DEFAULT CHARACTER SET utf8mb4;
+CREATE DATABASE IF NOT EXISTS kitty_user    DEFAULT CHARACTER SET utf8mb4;
+CREATE DATABASE IF NOT EXISTS kitty_order   DEFAULT CHARACTER SET utf8mb4;

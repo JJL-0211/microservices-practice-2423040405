@@ -1,60 +1,95 @@
-# 第 05 周：Kitty 蜜选电商系统容器编排
-# 用法：复制 .env.example 为 .env 并填写密码后，docker compose up -d --build
-# 说明：compose.yaml 不使用已废弃的 version 字段。
-name: kitty-shop
+name: kitty-ms
 
 services:
   # ---------------------------------------------------------------
-  # MySQL 8.4.11：通过命名数据卷 mysql-data 持久化数据
+  # MySQL 8.4.11：同一实例，通过 mysql-init.sql 建 3 个独立业务库
   # ---------------------------------------------------------------
   mysql:
     image: mysql:8.4.11
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-kitty_shop}
-      MYSQL_USER: ${MYSQL_USER:-kitty}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
+      MYSQL_INITDB_SKIP_TZINFO: "true"
       TZ: Asia/Shanghai
     volumes:
       - mysql-data:/var/lib/mysql
-    networks: [kitty-network]
-    # 健康检查：以业务账号连接业务库执行 SELECT 1，健康后 app 才启动
+      - ./scripts/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks: [kitty-net]
     healthcheck:
       test:
         - CMD-SHELL
         - >-
-          mysql --protocol=TCP -h 127.0.0.1
-          -u"$${MYSQL_USER}" -p"$${MYSQL_PASSWORD}"
-          "$${MYSQL_DATABASE}" -e 'SELECT 1'
+          mysqladmin ping -h 127.0.0.1 -uroot
+          -p"$${MYSQL_ROOT_PASSWORD}"
       interval: 5s
       timeout: 5s
-      retries: 20
+      retries: 30
       start_period: 30s
 
   # ---------------------------------------------------------------
-  # 应用：构建上下文为 ./monolith，通过服务名 mysql 连接数据库
+  # product-service：端口 8081，DB=kitty_product，拥有 product 表
   # ---------------------------------------------------------------
-  app:
-    image: kitty-shop:week05
+  product-service:
+    image: kitty-ms-product:week06
     build:
-      context: ./monolith
-    ports:
-      - "${APP_PORT:-8080}:8080"
-    # 用 Spring Boot 宽松绑定环境变量覆盖 application.yaml 中的本地连接配置，
-    # 无需修改上周的 application.yaml 即可连到容器内的 mysql 服务。
+      context: ./services/product-service
+    ports: ["${PRODUCT_PORT:-8081}:8080"]
     environment:
-      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-kitty_shop}?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true"
-      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-kitty}
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/kitty_product?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: Asia/Shanghai
     depends_on:
       mysql:
         condition: service_healthy
-    networks: [kitty-network]
+    networks: [kitty-net]
+
+  # ---------------------------------------------------------------
+  # user-service：端口 8082，DB=kitty_user，拥有 user 表
+  # ---------------------------------------------------------------
+  user-service:
+    image: kitty-ms-user:week06
+    build:
+      context: ./services/user-service
+    ports: ["${USER_PORT:-8082}:8080"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/kitty_user?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Shanghai
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks: [kitty-net]
+
+  # ---------------------------------------------------------------
+  # order-service：端口 8083，DB=kitty_order，通过 HTTP 调用
+  # product-service / user-service 完成校验与扣库存，本地再写入 shop_order
+  # ---------------------------------------------------------------
+  order-service:
+    image: kitty-ms-order:week06
+    build:
+      context: ./services/order-service
+    ports: ["${ORDER_PORT:-8083}:8080"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/kitty_order?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      PRODUCT_SERVICE_URL: http://product-service:8080
+      USER_SERVICE_URL:     http://user-service:8080
+      CONNECT_TIMEOUT_MS: 2000
+      READ_TIMEOUT_MS:    5000
+      TZ: Asia/Shanghai
+    depends_on:
+      mysql:
+        condition: service_healthy
+      product-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+    networks: [kitty-net]
 
 volumes:
-  # 命名数据卷：容器重建不会删除，保证 MySQL 数据持久化
   mysql-data:
 
 networks:
-  kitty-network:
+  kitty-net:

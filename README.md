@@ -468,3 +468,50 @@ curl http://localhost:8080/api/orders/1
 （会连数据卷一起删除）。
 
 完整过程与截图见 [第 05 周作业记录](docs/homework/week-05/index.md)。
+
+## 第 06 周：微服务拆分（3 服务 + Compose 本地编排）
+
+保留仓库中的 `monolith/` 作为单体版本；根目录新建 `services/`，将商品下单业务
+拆分为 3 个独立 Spring Boot 微服务：
+
+| 服务 | 端口 | 数据库 | 拥有的表 |
+| --- | --- | --- | --- |
+| `product-service` | 8081 | `kitty_product` | `product` |
+| `user-service` | 8082 | `kitty_user` | `user` |
+| `order-service` | 8083 | `kitty_order` | `shop_order` |
+
+下单时 `order-service` 通过 `RestTemplate` 先校验用户（`user-service`），再校验并扣库存
+（`product-service`），全部成功后才写入本地 `shop_order`。任一依赖失败都**不写本地数据**。
+
+### 运行
+
+```bash
+# 1) 复制环境变量模板
+Copy-Item .env.example .env          # Linux/macOS: cp .env.example .env
+
+# 2) 一键构建启动 4 个容器（mysql + 3 微服务）
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
+
+# 3) 健康检查 + 跨服务下单验证脚本（仓库根目录）
+bash scripts/smoke-test.sh
+
+# 4) 停止（保留命名数据卷）
+docker compose down
+```
+
+### 服务内独立测试（H2，不需要 MySQL）
+
+```bash
+cd services/product-service && mvn test
+cd services/user-service    && mvn test
+cd services/order-service   && mvn test
+```
+
+### 架构图与设计文档
+
+- [docs/microservices-design.md](docs/microservices-design.md) — 服务边界、端口、数据库、
+  Mermaid 架构图、调用链说明。
+- [docs/homework/week-06/index.md](docs/homework/week-06/index.md) — 本周实现、运行命令、
+  验证结果与截图。
