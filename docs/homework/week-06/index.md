@@ -132,6 +132,12 @@ cd services/order-service   && mvn test
 | user-service | ✅ | ✅ `UserController` | ✅ `UserService` | ✅ | ✅ `User` | ✅ H2 | ✅ |
 | order-service | ✅ | ✅ `OrderController`（含错误映射） | ✅ `OrderService` + 跨服务调用链 | ✅ | ✅ `ShopOrder` + `OrderStatus` | ✅ H2 | ✅ |
 
+### 截图
+
+三个独立微服务各自健康接口返回 UP，演示用户与商品通过 REST API 创建成功（201）：
+
+![代码拆分截图](screenshots/01-代码拆分-健康与演示数据.png)
+
 ---
 
 ## 三、本地编排
@@ -178,7 +184,9 @@ kitty-ms-order-service-1     order-service     Up                        0.0.0.0
 
 ### 截图
 
-![Compose 一键启动与状态](screenshots/01-compose启动.png)
+Compose 一键构建启动后 4 个容器全部就绪，mysql 健康，3 个微服务正常对外暴露端口：
+
+![本地编排截图](screenshots/02-本地编排-compose启动.png)
 
 ---
 
@@ -257,12 +265,13 @@ GET /api/orders
 
 ### 截图
 
-| 文件 | 内容 |
-| --- | --- |
-| `01-compose启动.png` | `docker compose up -d --build` + `docker compose ps`（4 容器） |
-| `02-健康与演示数据.png` | 三个健康接口 + 用户/商品创建 201 |
-| `03-跨服务下单成功.png` | 下单 201 + 库存 100→98 + 订单列表 |
-| `04-失败场景.png` | 用户不存在 400 + 商品不存在 503 + product-service 停止后 503 |
+跨服务下单成功：order-service 201，product-service 库存从 100 扣到 98，shop_order 本地写入：
+
+![验证-下单成功](screenshots/03-验证-下单成功.png)
+
+失败场景：用户不存在返回 400、商品不存在返回 503、依赖服务停止后返回 503——三个场景本地 shop_order 均未新增记录：
+
+![验证-失败场景](screenshots/04-验证-失败场景.png)
 
 ## 5. Mermaid 架构图（同 docs/microservices-design.md）
 
